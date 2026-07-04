@@ -20,6 +20,11 @@ OneShotTrigger_m sleepTimer(300000); // 5分で消灯
 bool is_screen_on = true;
 bool measurement_flag = false;
 
+// ホールド機能用の状態変数
+bool is_holding = false; // ホールド状態フラグ
+float held_tmp = 0.0;    // ホールドされた温度値
+float held_prs = 0.0;    // ホールドされた気圧値
+
 // BMP585 の初期化と設定
 bool initBMP585() {
   Serial.println("Initializing BMP585...");
@@ -77,7 +82,7 @@ struct DisplayItem {
     ofr.drawString(unit, UNIT_X, y_pos);
   }
 
-  void drawValue(OpenFontRender &ofr, bool is_error) const {
+  void drawValue(OpenFontRender &ofr, bool is_error, float val) const {
     // 定数を用いて消去処理の意図を明確化
     M5.Lcd.fillRect(CLEAR_X, y_pos + CLEAR_Y_OFFSET, CLEAR_WIDTH, CLEAR_HEIGHT,
                     BLACK);
@@ -86,15 +91,15 @@ struct DisplayItem {
       ofr.drawString("Err", VALUE_X, y_pos);
     } else {
       char buf[16];
-      sprintf(buf, format, (*value_ptr) / scale);
+      sprintf(buf, format, val / scale);
       ofr.drawString(buf, VALUE_X, y_pos);
     }
   }
 };
 
 DisplayItem displayItems[] = {
-    {"温度:", "℃", "%4.1f", 40, &current_tmp, 1.0f},
-    {"気圧:", "hPa", "%4.0f", 100, &current_prs, 1.0f}};
+    {"温度:", "℃", "%4.1f", 55, &current_tmp, 1.0f},
+    {"気圧:", "hPa", "%4.0f", 115, &current_prs, 1.0f}};
 
 // 固定部分（項目名・単位）の描画処理
 void drawStaticPart() {
@@ -114,7 +119,33 @@ void drawValues() {
   bool is_error = (error_count >= 5);
 
   for (const auto &item : displayItems) {
-    item.drawValue(ofr, is_error);
+    float val = is_holding ? ((item.value_ptr == &current_tmp) ? held_tmp : held_prs) : *item.value_ptr;
+    bool err = is_holding ? false : is_error;
+    item.drawValue(ofr, err, val);
+  }
+}
+
+// 状態表示とボタンラベルの描画処理
+void drawStatusAndLabels() {
+  // 状態表示エリア (Y = 0 ～ 35) のクリアと描画
+  M5.Lcd.fillRect(0, 0, 320, 35, BLACK);
+  ofr.setFontSize(24);
+  if (is_holding) {
+    ofr.setFontColor(TFT_RED);
+    ofr.drawString("[ホールド中]", 20, 5);
+  } else {
+    ofr.setFontColor(TFT_GREEN);
+    ofr.drawString("[計測中]", 20, 5);
+  }
+
+  // ボタンラベルエリア (Y = 180 ～ 240) のクリアと描画
+  M5.Lcd.fillRect(0, 180, 320, 60, BLACK);
+  ofr.setFontSize(24);
+  ofr.setFontColor(TFT_WHITE);
+  if (is_holding) {
+    ofr.drawString("解除", 40, 200);
+  } else {
+    ofr.drawString("ホールド", 20, 200);
   }
 }
 
@@ -130,7 +161,7 @@ void setup() {
   M5.Lcd.fillScreen(BLACK);
 
   // フォントの初期化
-  ofr.loadFont((uint8_t *)NotoSansJP_Regular, NotoSansJP_Regular_size);
+  ofr.loadFont((uint8_t *)NotoSansJP_Regular, NotoSansJP_Regular_len);
   ofr.setDrawer(M5.Lcd);
   ofr.setFontSize(36);
   ofr.setFontColor(TFT_WHITE);
@@ -151,20 +182,36 @@ void setup() {
   sleepTimer.start();
 
   drawStaticPart();
+  drawStatusAndLabels();
   drawValues();
 }
 
 void loop() {
   M5.update();
 
+  bool btnA_pressed = M5.BtnA.wasPressed();
+  bool btnB_pressed = M5.BtnB.wasPressed();
+  bool btnC_pressed = M5.BtnC.wasPressed();
+
   // ボタン操作でスリープ復帰＆タイマーリセット
-  if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
+  if (btnA_pressed || btnB_pressed || btnC_pressed) {
     sleepTimer.start();
     if (!is_screen_on) {
       M5.Lcd.setBrightness(255);
       is_screen_on = true;
       drawStaticPart();
+      drawStatusAndLabels();
       drawValues(); // 復帰時に再描画
+    } else {
+      if (btnA_pressed) {
+        is_holding = !is_holding;
+        if (is_holding) {
+          held_tmp = current_tmp;
+          held_prs = current_prs;
+        }
+        drawStatusAndLabels();
+        drawValues();
+      }
     }
   }
 
