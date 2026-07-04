@@ -2,7 +2,7 @@
 #include "binaryttf.h"
 #include "util.h"
 #include <Adafruit_BMP5xx.h>
-#include <M5Stack.h>
+#include <M5Unified.h>
 #include <Wire.h>
 
 Adafruit_BMP5xx bmp;
@@ -119,7 +119,9 @@ void drawValues() {
   bool is_error = (error_count >= 5);
 
   for (const auto &item : displayItems) {
-    float val = is_holding ? ((item.value_ptr == &current_tmp) ? held_tmp : held_prs) : *item.value_ptr;
+    float val = is_holding
+                    ? ((item.value_ptr == &current_tmp) ? held_tmp : held_prs)
+                    : *item.value_ptr;
     bool err = is_holding ? false : is_error;
     item.drawValue(ofr, err, val);
   }
@@ -127,8 +129,8 @@ void drawValues() {
 
 // 状態表示とボタンラベルの描画処理
 void drawStatusAndLabels() {
-  // 状態表示エリア (Y = 0 ～ 35) のクリアと描画
-  M5.Lcd.fillRect(0, 0, 320, 35, BLACK);
+  // 状態表示エリア (Y = 0 ～ 40) のクリアと描画
+  M5.Lcd.fillRect(0, 0, 320, 40, BLACK);
   ofr.setFontSize(24);
   if (is_holding) {
     ofr.setFontColor(TFT_RED);
@@ -151,7 +153,10 @@ void drawStatusAndLabels() {
 
 void setup() {
   // I2Cは後でWire.beginするので無効化しておく
-  M5.begin(true, false, true, false);
+  auto cfg = M5.config();
+  cfg.serial_baudrate = 115200;
+  cfg.clear_display = true;
+  M5.begin(cfg);
 
   // M5Stack標準のGroveポート(Port A)
   constexpr int SDA_PIN = 21;
