@@ -7,18 +7,18 @@ description: pioコマンドによるビルドやアップロードが必要に�
 
 ### Windows (PowerShell)
 ```powershell
-.agent/skills/run-pio-build/scripts/run-pio-build.ps1 -t build  # or -t upload, -t test, etc.
+.agents/skills/run-pio-build/scripts/run-pio-build.ps1  # 引数なしでビルド、または -t upload, -t test など
 ```
 
 ### macOS / Linux (Bash)
 ```bash
-.agent/skills/run-pio-build/scripts/run-pio-build.sh -t build  # or -t upload, -t test, etc.
+.agents/skills/run-pio-build/scripts/run-pio-build.sh  # 引数なしでビルド、または -t upload, -t test など
 ```
 
 ### 引数について
 `run-pio-build` スキルは引数として PlatformIO CLI のコマンドをそのまま受け取ります。よく使われる引数は以下の通りです：
 
-- `-t build` または `build`: プロジェクトをビルドします
+- 引数なし: デフォルトのビルドを実行します
 - `-t upload`: ビルドしたファームウェアをデバイスにアップロードします
 - `-t test`: テストコードを実行します
 - `-t monitor`: シリアルモニターを開きます
@@ -27,10 +27,10 @@ description: pioコマンドによるビルドやアップロードが必要に�
 ### 使用例
 **ESP32dev 環境でビルドし、アップロードする**
 ```powershell
-.agent/skills/run-pio-build/scripts/run-pio-build.ps1 -e esp32dev -t upload
+.agents/skills/run-pio-build/scripts/run-pio-build.ps1 -e esp32dev -t upload
 ```
 
 **Nano Every 環境でテストコードを実行する**
 ```bash
-.agent/skills/run-pio-build/scripts/run-pio-build.sh -e nano_every -t test
+.agents/skills/run-pio-build/scripts/run-pio-build.sh -e nano_every -t test
 ```

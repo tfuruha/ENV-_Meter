@@ -34,12 +34,12 @@ PlatformIO IDE、または付属のスキルスクリプトを使用してビル
 
 **ビルド:**
 ```powershell
-.agent/skills/run-pio-build/scripts/run-pio-build.ps1
+.agents/skills/run-pio-build/scripts/run-pio-build.ps1
 ```
 
 **書き込み:**
 ```powershell
-.agent/skills/run-pio-build/scripts/run-pio-build.ps1 -t upload
+.agents/skills/run-pio-build/scripts/run-pio-build.ps1 -t upload
 ```
 
 ## ドキュメント

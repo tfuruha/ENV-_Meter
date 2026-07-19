@@ -16,8 +16,7 @@ int32_t error_count =
 
 IntervalTrigger_m updateTimer(1000); // 1秒更新
 IntervalTrigger_m pollTimer(25);     // 100ms周期（ODR 10Hzに同期）のポーリング
-OneShotTrigger_m sleepTimer(300000); // 5分で消灯
-bool is_screen_on = true;
+OneShotTrigger_m sleepTimer(300000); // 5分でパワーオフ
 bool measurement_flag = false;
 
 // ホールド機能用の状態変数
@@ -198,32 +197,23 @@ void loop() {
   bool btnB_pressed = M5.BtnB.wasPressed();
   bool btnC_pressed = M5.BtnC.wasPressed();
 
-  // ボタン操作でスリープ復帰＆タイマーリセット
+  // ボタン操作でタイマーリセット＆処理実行
   if (btnA_pressed || btnB_pressed || btnC_pressed) {
     sleepTimer.start();
-    if (!is_screen_on) {
-      M5.Lcd.setBrightness(255);
-      is_screen_on = true;
-      drawStaticPart();
-      drawStatusAndLabels();
-      drawValues(); // 復帰時に再描画
-    } else {
-      if (btnA_pressed) {
-        is_holding = !is_holding;
-        if (is_holding) {
-          held_tmp = current_tmp;
-          held_prs = current_prs;
-        }
-        drawStatusAndLabels();
-        drawValues();
+    if (btnA_pressed) {
+      is_holding = !is_holding;
+      if (is_holding) {
+        held_tmp = current_tmp;
+        held_prs = current_prs;
       }
+      drawStatusAndLabels();
+      drawValues();
     }
   }
 
-  // 5分（300秒 = 300,000ms）経過で画面を暗くする
-  if (is_screen_on && sleepTimer.hasExpired()) {
-    M5.Lcd.setBrightness(0);
-    is_screen_on = false;
+  // 5分（300秒 = 300,000ms）経過でパワーオフ
+  if (sleepTimer.hasExpired()) {
+    M5.Power.powerOff();
   }
 
   // 測定：25ms周期で直接データを取得（ODR 10Hz）
@@ -246,8 +236,8 @@ void loop() {
 
   // 表示：1秒毎の更新処理
   if (updateTimer.hasExpired()) {
-    // 画面点灯中かつ測定完了時のみ画面更新
-    if (is_screen_on && measurement_flag) {
+    // 測定完了時のみ画面更新
+    if (measurement_flag) {
       drawValues();
       measurement_flag = false;
     }
