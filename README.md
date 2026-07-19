@@ -47,3 +47,6 @@ PlatformIO IDE、または付属のスキルスクリプトを使用してビル
 詳細な仕様や設計については `doc/` ディレクトリを参照してください。
 - [仕様概要](doc/SpecSammary.md)
 - [ソフトウェア設計書](doc/SoftwareDesign.md)
+
+## ライセンス
+本プロジェクトは [MIT ライセンス](LICENSE) のもとで公開されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
