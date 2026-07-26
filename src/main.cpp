@@ -1,3 +1,5 @@
+#include "AlarmManager.h"
+#include "HoldManager.h"
 #include "OpenFontRender.h"
 #include "binaryttf.h"
 #include "util.h"
@@ -19,10 +21,9 @@ IntervalTrigger_m pollTimer(25);     // 100ms周期（ODR 10Hzに同期）のポ
 OneShotTrigger_m sleepTimer(300000); // 5分でパワーオフ
 bool measurement_flag = false;
 
-// ホールド機能用の状態変数
-bool is_holding = false; // ホールド状態フラグ
-float held_tmp = 0.0;    // ホールドされた温度値
-float held_prs = 0.0;    // ホールドされた気圧値
+// 管理クラスのインスタンス
+AlarmManager alarmMgr;
+HoldManager holdMgr;
 
 // BMP585 の初期化と設定
 bool initBMP585() {
@@ -100,6 +101,10 @@ DisplayItem displayItems[] = {
     {"温度:", "℃", "%4.1f", 55, &current_tmp, 1.0f},
     {"気圧:", "hPa", "%4.0f", 115, &current_prs, 1.0f}};
 
+// 状態表示とボタンラベルの描画処理（宣言順の調整のためプロトタイプ宣言）
+void drawStatusAndLabels();
+void drawValues();
+
 // 固定部分（項目名・単位）の描画処理
 void drawStaticPart() {
   M5.Lcd.clear(BLACK);
@@ -114,14 +119,22 @@ void drawStaticPart() {
 // 数値部分のみの更新処理
 void drawValues() {
   ofr.setFontSize(36);
-  ofr.setFontColor(TFT_CYAN);
+  uint16_t textColor = TFT_CYAN;
+  if (alarmMgr.isAlarmActive()) {
+    textColor = TFT_RED;
+  } else if (alarmMgr.isSnoozed()) {
+    textColor = TFT_YELLOW;
+  }
+  ofr.setFontColor(textColor);
   bool is_error = (error_count >= 5);
 
   for (const auto &item : displayItems) {
-    float val = is_holding
-                    ? ((item.value_ptr == &current_tmp) ? held_tmp : held_prs)
+    float val = holdMgr.isHolding()
+                    ? ((item.value_ptr == &current_tmp)
+                           ? holdMgr.heldTemp()
+                           : holdMgr.heldPressure())
                     : *item.value_ptr;
-    bool err = is_holding ? false : is_error;
+    bool err = holdMgr.isHolding() ? false : is_error;
     item.drawValue(ofr, err, val);
   }
 }
@@ -131,7 +144,13 @@ void drawStatusAndLabels() {
   // 状態表示エリア (Y = 0 ～ 40) のクリアと描画
   M5.Lcd.fillRect(0, 0, 320, 40, BLACK);
   ofr.setFontSize(24);
-  if (is_holding) {
+  if (alarmMgr.isAlarmActive()) {
+    ofr.setFontColor(TFT_RED);
+    ofr.drawString("[圧力低下警報]", 20, 5);
+  } else if (alarmMgr.isSnoozed()) {
+    ofr.setFontColor(TFT_YELLOW);
+    ofr.drawString("[警報スヌーズ]", 20, 5);
+  } else if (holdMgr.isHolding()) {
     ofr.setFontColor(TFT_RED);
     ofr.drawString("[ホールド中]", 20, 5);
   } else {
@@ -143,7 +162,7 @@ void drawStatusAndLabels() {
   M5.Lcd.fillRect(0, 180, 320, 60, BLACK);
   ofr.setFontSize(24);
   ofr.setFontColor(TFT_WHITE);
-  if (is_holding) {
+  if (holdMgr.isHolding()) {
     ofr.drawString("解除", 40, 200);
   } else {
     ofr.drawString("ホールド", 20, 200);
@@ -200,15 +219,25 @@ void loop() {
   // ボタン操作でタイマーリセット＆処理実行
   if (btnA_pressed || btnB_pressed || btnC_pressed) {
     sleepTimer.start();
-    if (btnA_pressed) {
-      is_holding = !is_holding;
-      if (is_holding) {
-        held_tmp = current_tmp;
-        held_prs = current_prs;
+    if (alarmMgr.isAlarmActive()) {
+      // 警報鳴動中はいずれのボタンを押しても警報解除（スヌーズ）のみを行う
+      if (alarmMgr.handleButton()) {
+        drawStatusAndLabels();
+        drawValues();
       }
-      drawStatusAndLabels();
-      drawValues();
+    } else {
+      if (btnA_pressed) {
+        holdMgr.toggle(current_tmp, current_prs);
+        drawStatusAndLabels();
+        drawValues();
+      }
     }
+  }
+
+  // 警報機能の更新処理（スヌーズタイムアウト判定・ビープ音発声判定）
+  if (alarmMgr.update(current_prs)) {
+    drawStatusAndLabels();
+    drawValues();
   }
 
   // 5分（300秒 = 300,000ms）経過でパワーオフ
@@ -226,6 +255,11 @@ void loop() {
           error_count = 0;
         }
         measurement_flag = true;
+
+        if (alarmMgr.check(current_prs)) {
+          drawStatusAndLabels();
+          drawValues();
+        }
       } else {
         if (error_count < 5) {
           error_count++;
@@ -243,3 +277,4 @@ void loop() {
     }
   }
 }
+
