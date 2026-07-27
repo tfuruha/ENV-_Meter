@@ -11,6 +11,8 @@ Adafruit_BMP5xx bmp;
 OpenFontRender ofr;
 
 // --- 状態管理 ---
+constexpr float POWER_OFF_PRESSURE_THRESHOLD_HPA = 980.0f; // パワーオフ判定用気圧閾値 (hPa)
+
 float current_tmp = 0.0; // 温度
 float current_prs = 0.0; // 圧力 単位 hPa
 int32_t error_count =
@@ -240,9 +242,16 @@ void loop() {
     drawValues();
   }
 
-  // 5分（300秒 = 300,000ms）経過でパワーオフ
+  // 減圧測定中（980hPa未満）は使用中とみなしてタイマーをリセット
+  if (current_prs < POWER_OFF_PRESSURE_THRESHOLD_HPA) {
+    sleepTimer.start();
+  }
+
+  // 5分（300秒 = 300,000ms）経過かつ大気圧下（980hPa以上）でパワーオフ
   if (sleepTimer.hasExpired()) {
-    M5.Power.powerOff();
+    if (current_prs >= POWER_OFF_PRESSURE_THRESHOLD_HPA) {
+      M5.Power.powerOff();
+    }
   }
 
   // 測定：25ms周期で直接データを取得（ODR 10Hz）
