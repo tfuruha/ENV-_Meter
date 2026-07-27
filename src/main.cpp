@@ -27,6 +27,22 @@ bool measurement_flag = false;
 AlarmManager alarmMgr;
 HoldManager holdMgr;
 
+// IP5306の充電状態（充電中または満充電）を判定
+bool isCharging() {
+  Wire.beginTransmission(0x75);
+  Wire.write(0x70);
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  Wire.requestFrom(0x75, 1);
+  if (!Wire.available()) {
+    return false;
+  }
+  uint8_t reg = Wire.read();
+  return (reg & 0x08) || (reg & 0x04);
+}
+
+
 // BMP585 の初期化と設定
 bool initBMP585() {
   Serial.println("Initializing BMP585...");
@@ -279,6 +295,11 @@ void loop() {
 
   // 表示：1秒毎の更新処理
   if (updateTimer.hasExpired()) {
+    // USB給電（充電中または満充電）時はスリープタイマーをリセットしてパワーオフを抑制
+    if (isCharging()) {
+      sleepTimer.start();
+    }
+
     // 測定完了時のみ画面更新
     if (measurement_flag) {
       drawValues();
