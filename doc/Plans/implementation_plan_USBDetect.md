@@ -38,17 +38,22 @@ if (sleepTimer.hasExpired()) {
 
 ### IP5306 レジスタ（I2Cアドレス: `0x75`）
 
-| ビット | 意味 |
-|--------|------|
-| `0x70` bit3 = 1 | 充電中 |
-| `0x70` bit2 = 1 | 満充電（USB接続中） |
-| 両方 0 | USB未接続（バッテリー放電中） |
+公式データシート（`IIC_IP5306_REG_V1.4_cn.pdf`）に基づく仕様：
+
+| レジスタ | ビット | 信号名 / 意味 | 状態 |
+|---------|--------|--------------|------|
+| `0x70` (REG_READ0) | bit3 (`charge_en`) | 1: 充電中（充電ON） / 0: 放電中 | 充電動作中 |
+| `0x71` (REG_READ1) | bit3 (充满标志位) | 1: 満充電 / 0: 未満充電 | 充電完了（USB接続中） |
+| 両方 0 | - | USB未接続（バッテリー放電中） | バッテリー駆動 |
+
+> [!NOTE]
+> データシート V1.4 の定義に従い、充電中フラグは `0x70` bit3（`charge_en`）、満充電フラグは `0x71` bit3（`充满标志位`）を参照します。（`0x70` bit2 は Reserved です）
 
 ### IP5306 の満充電サイクル特性
 
 満充電後、IP5306 はトリクル充電の ON/OFF サイクルを繰り返す。
-5分間の間に必ず充電フラグ（bit3）が立つタイミングがあるため、
-「5分間で1回でも充電中を検出」という要件は IP5306 との相性が良い。
+5分間の間に必ず充電フラグ（`0x70` bit3）または満充電フラグ（`0x71` bit3）が立つタイミングがあるため、
+「5分間で1回でもUSB給電/充電状態を検出」という要件は IP5306 との相性が良い。
 
 ---
 
@@ -61,15 +66,20 @@ if (sleepTimer.hasExpired()) {
 ### 追加する関数
 
 ```cpp
-// IP5306のI2Cレジスタを読み、充電中または満充電なら true を返す
-bool isCharging() {
+// IP5306のI2Cレジスタ読み込みヘルパー関数
+uint8_t readIP5306Register(uint8_t reg) {
     Wire.beginTransmission(0x75);   // IP5306 I2Cアドレス
-    Wire.write(0x70);               // ステータスレジスタ
-    if (Wire.endTransmission(false) != 0) return false;
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return 0;
     Wire.requestFrom(0x75, 1);
-    if (!Wire.available()) return false;
-    uint8_t reg = Wire.read();
-    return (reg & 0x08) || (reg & 0x04); // bit3: 充電中, bit2: 満充電
+    return Wire.available() ? Wire.read() : 0;
+}
+
+// IP5306のレジスタを読み、充電中（0x70 bit3）または満充電（0x71 bit3）なら true を返す
+bool isCharging() {
+    uint8_t reg70 = readIP5306Register(0x70); // REG_READ0 (bit3: charge_en 充電中)
+    uint8_t reg71 = readIP5306Register(0x71); // REG_READ1 (bit3: 充满标志位 満充電)
+    return (reg70 & 0x08) || (reg71 & 0x08);
 }
 ```
 

@@ -11,7 +11,8 @@ Adafruit_BMP5xx bmp;
 OpenFontRender ofr;
 
 // --- 状態管理 ---
-constexpr float POWER_OFF_PRESSURE_THRESHOLD_HPA = 980.0f; // パワーオフ判定用気圧閾値 (hPa)
+constexpr float POWER_OFF_PRESSURE_THRESHOLD_HPA =
+    980.0f; // パワーオフ判定用気圧閾値 (hPa)
 
 float current_tmp = 0.0; // 温度
 float current_prs = 0.0; // 圧力 単位 hPa
@@ -21,27 +22,32 @@ int32_t error_count =
 IntervalTrigger_m updateTimer(1000); // 1秒更新
 IntervalTrigger_m pollTimer(25);     // 100ms周期（ODR 10Hzに同期）のポーリング
 OneShotTrigger_m sleepTimer(300000); // 5分でパワーオフ
+// OneShotTrigger_m sleepTimer(60000); // 1分でパワーオフ for test
 bool measurement_flag = false;
 
 // 管理クラスのインスタンス
 AlarmManager alarmMgr;
 HoldManager holdMgr;
 
-// IP5306の充電状態（充電中）を判定
-bool isCharging() {
-  Wire.beginTransmission(0x75);
-  Wire.write(0x70);
+// IP5306のI2Cレジスタ読み込みヘルパー関数
+uint8_t readIP5306Register(uint8_t reg) {
+  Wire.beginTransmission(0x75); // IP5306 I2Cアドレス
+  Wire.write(reg);
   if (Wire.endTransmission(false) != 0) {
-    return false;
+    return 0;
   }
   Wire.requestFrom(0x75, 1);
-  if (!Wire.available()) {
-    return false;
-  }
-  uint8_t reg = Wire.read();
-  return (reg & 0x08);// || (reg & 0x04);
+  return Wire.available() ? Wire.read() : 0;
 }
 
+// IP5306のレジスタを読み、充電中（0x70 bit3）または満充電（0x71 bit3）なら true
+// を返す
+bool isCharging() {
+  uint8_t reg70 = readIP5306Register(0x70); // REG_READ0 (bit3: 充電中)
+  uint8_t reg71 = readIP5306Register(0x71); // REG_READ1 (bit3: 満充電)
+  //  Serial.printf("IP5306 reg0x70: 0x%02X, reg0x71: 0x%02X\n", reg70, reg71);
+  return (reg70 & 0x08) || (reg71 & 0x08);
+}
 
 // BMP585 の初期化と設定
 bool initBMP585() {
@@ -147,11 +153,10 @@ void drawValues() {
   bool is_error = (error_count >= 5);
 
   for (const auto &item : displayItems) {
-    float val = holdMgr.isHolding()
-                    ? ((item.value_ptr == &current_tmp)
-                           ? holdMgr.heldTemp()
-                           : holdMgr.heldPressure())
-                    : *item.value_ptr;
+    float val = holdMgr.isHolding() ? ((item.value_ptr == &current_tmp)
+                                           ? holdMgr.heldTemp()
+                                           : holdMgr.heldPressure())
+                                    : *item.value_ptr;
     bool err = holdMgr.isHolding() ? false : is_error;
     item.drawValue(ofr, err, val);
   }
@@ -307,4 +312,3 @@ void loop() {
     }
   }
 }
-
