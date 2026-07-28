@@ -39,7 +39,7 @@ bool isCharging() {
     return false;
   }
   uint8_t reg = Wire.read();
-  return (reg & 0x08) || (reg & 0x04);
+  return (reg & 0x08);// || (reg & 0x04);
 }
 
 
