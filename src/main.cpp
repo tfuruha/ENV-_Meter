@@ -27,7 +27,7 @@ bool measurement_flag = false;
 AlarmManager alarmMgr;
 HoldManager holdMgr;
 
-// IP5306の充電状態（充電中または満充電）を判定
+// IP5306の充電状態（充電中）を判定
 bool isCharging() {
   Wire.beginTransmission(0x75);
   Wire.write(0x70);
